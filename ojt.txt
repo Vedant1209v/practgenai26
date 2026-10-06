@@ -1,0 +1,454 @@
+Chatbot
+!pip install -U huggingface_hub
+!pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+from llama_cpp import Llama
+
+# Load the AI model
+llm = Llama.from_pretrained(
+    repo_id="TheBloke/zephyr-7B-beta-GGUF",
+    filename="zephyr-7b-beta.Q4_K_M.gguf",
+    n_ctx=4096,
+    n_gpu_layers=0
+)
+
+# Store chat history
+history = [
+    {
+        "role": "system",
+        "content": "You are a helpful AI assistant."
+    }
+]
+
+print("================================")
+print("        AI CHAT BOT")
+print("================================")
+print("Type 'exit' to stop the chatbot.\n")
+
+
+while True:
+
+    # Get user input
+    prompt = input("You: ")
+
+    # Exit chatbot
+    if prompt.lower() in ["exit", "quit", "bye"]:
+        print("Exiting chat.")
+        break
+
+    # Add user message
+    history.append(
+        {
+            "role": "user",
+            "content": prompt
+        }
+    )
+
+    # Generate response
+    output = llm.create_chat_completion(
+        messages=history
+    )
+
+    # Get assistant response
+    reply = output["choices"][0]["message"]["content"]
+
+    # Store response
+    history.append(
+        {
+            "role": "assistant",
+            "content": reply
+        }
+    )
+
+    # Display response
+    print("Assistant:", reply)
+    print()
+
+Image to sketch 
+!pip install diffusers transformers accelerate safetensors opencv-python pillow
+import torch
+import cv2
+from PIL import Image
+from google.colab import files
+
+from diffusers import (
+    StableDiffusionControlNetPipeline,
+    ControlNetModel,
+    UniPCMultistepScheduler
+)
+
+device = "cpu"
+dtype = torch.float32
+
+print("Using device:", device)
+
+
+print("Loading ControlNet...")
+
+controlnet = ControlNetModel.from_pretrained(
+    "lllyasviel/sd-controlnet-scribble",
+    torch_dtype=dtype
+)
+
+
+print("Loading Stable Diffusion...")
+
+pipe = StableDiffusionControlNetPipeline.from_pretrained(
+    "runwayml/stable-diffusion-v1-5",
+    controlnet=controlnet,
+    torch_dtype=dtype
+)
+
+
+
+pipe.scheduler = UniPCMultistepScheduler.from_config(
+    pipe.scheduler.config
+)
+
+
+
+pipe = pipe.to(device)
+
+
+
+print("\nPlease upload your sketch/image:")
+
+uploaded = files.upload()
+
+# Get uploaded file name
+input_path = list(uploaded.keys())[0]
+
+print("Uploaded file:", input_path)
+
+
+
+img = cv2.imread(
+    input_path,
+    cv2.IMREAD_GRAYSCALE
+)
+
+
+if img is None:
+
+    print("Error: Could not read the image.")
+
+else:
+
+    print("Image loaded successfully.")
+
+    edges = cv2.Canny(
+        img,
+        100,
+        200
+    )
+
+
+    edges = cv2.cvtColor(
+        edges,
+        cv2.COLOR_GRAY2RGB
+    )
+
+
+
+    control_image = Image.fromarray(edges)
+
+
+    # Display input sketch
+    print("Input sketch:")
+
+    display(control_image)
+
+    prompt = (
+        "a colorful illustration of a cute anime "
+        "character in a fantasy world, vibrant colors"
+    )
+
+
+    print("\nGenerating image...")
+    print("CPU generation may take a long time.")
+
+
+    output = pipe(
+        prompt=prompt,
+        image=control_image,
+        num_inference_steps=10
+    ).images[0]
+
+
+    output.save("colored.png")
+    print("\nImage generated successfully!")
+
+    print("Output saved as: colored.png")
+
+    display(output)
+
+Image to text
+!pip install transformers torch pillow
+
+from transformers import BlipProcessor, BlipForConditionalGeneration
+from PIL import Image
+from google.colab import files
+
+# Upload image
+uploaded = files.upload()
+
+# Get image filename
+image_path = list(uploaded.keys())[0]
+
+# Load model
+processor = BlipProcessor.from_pretrained(
+    "Salesforce/blip-image-captioning-large"
+)
+
+model = BlipForConditionalGeneration.from_pretrained(
+    "Salesforce/blip-image-captioning-large"
+)
+
+# Open image
+image = Image.open(image_path).convert("RGB")
+
+# Process image
+inputs = processor(
+    images=image,
+    return_tensors="pt"
+)
+
+# Generate description
+outputs = model.generate(
+    **inputs,
+    max_new_tokens=50
+)
+
+# Convert output to text
+description = processor.decode(
+    outputs[0],
+    skip_special_tokens=True
+)
+
+print("Description:", description)
+
+Music to Text
+!pip install -q openai-whisper
+
+import whisper
+
+from google.colab import files
+
+
+uploaded = files.upload()
+
+audio = list(uploaded.keys())[0]
+
+model = whisper.load_model("base")
+
+result = model.transcribe(audio)
+print("Generated Text:")
+print(result["text"])
+
+
+# Save text
+with open("music_text.txt", "w") as f:
+
+    f.write(result["text"])
+
+
+# Download text file
+files.download("music_text.txt")
+
+Text to image 
+!pip install diffusers accelerate torch
+
+from diffusers import StableDiffusionPipeline
+import torch
+
+# Load the pre-trained model
+model_id = "runwayml/stable-diffusion-v1-5"
+
+pipe = StableDiffusionPipeline.from_pretrained(
+    model_id,
+    torch_dtype=torch.float16
+)
+
+# Use GPU
+pipe = pipe.to("cuda")
+
+# Enter prompt
+prompt = input("Enter image description: ")
+
+# Generate image
+image = pipe(prompt).images[0]
+
+# Save image
+image.save("output.png")
+
+print("Image generated successfully!")
+print("Saved as output.png")
+
+Text To music 
+!pip install transformers torch scipy
+
+from transformers import AutoProcessor, MusicgenForConditionalGeneration
+import scipy.io.wavfile as wavfile
+
+# Load processor and model
+processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
+model = MusicgenForConditionalGeneration.from_pretrained(
+    "facebook/musicgen-small"
+)
+
+# Enter music description
+prompt = input("Enter a music description: ")
+
+if prompt.strip():
+
+    # Convert text into input
+    inputs = processor(
+        text=[prompt],
+        padding=True,
+        return_tensors="pt"
+    )
+
+    # Generate music
+    audio_values = model.generate(
+        **inputs,
+        max_new_tokens=128
+    )
+
+    # Convert audio to numpy
+    audio = audio_values[0].cpu().numpy()
+
+    # Get sampling rate
+    sampling_rate = model.config.audio_encoder.sampling_rate
+
+    # Save music
+    wavfile.write(
+        "musicgen_out.wav",
+        sampling_rate,
+        audio.T
+    )
+
+    print("Music generated successfully!")
+    print("Saved as musicgen_out.wav")
+
+else:
+    print("Error: Prompt cannot be empty.")
+
+Text to speech 
+!pip install gTTS
+
+from gtts import gTTS
+from IPython.display import Audio, display
+
+# Enter text
+text = input("Enter text: ")
+
+if text.strip():
+
+    # Convert text to speech
+    tts = gTTS(text=text, lang="en")
+
+    # Save audio
+    tts.save("output_speech.mp3")
+
+    print("Speech generated successfully!")
+    print("Saved as output_speech.mp3")
+
+    # Play audio in Jupyter
+    display(Audio("output_speech.mp3"))
+
+else:
+    print("Error: Text cannot be empty.")
+
+
+Text to story
+!pip install transformers torch
+
+from transformers import pipeline
+
+# Load GPT-2
+generator = pipeline(
+    "text-generation",
+    model="gpt2"
+)
+
+def generate_story(prompt, max_length=150):
+
+    story = generator(
+        prompt,
+        max_length=max_length,
+        num_return_sequences=1
+    )
+
+    return story[0]["generated_text"]
+
+
+prompt = input(
+    "Enter a story prompt: "
+)
+
+if prompt.strip():
+
+    generated_story = generate_story(prompt)
+
+    print("\nGenerated Story:")
+    print(generated_story)
+
+else:
+    print("Error: Prompt cannot be empty.")
+
+
+Text to text
+!pip install transformers sentencepiece torch
+
+from transformers import M2M100ForConditionalGeneration
+from transformers import M2M100Tokenizer
+
+model_name = "facebook/m2m100_418M"
+
+# Load tokenizer and model
+tokenizer = M2M100Tokenizer.from_pretrained(model_name)
+model = M2M100ForConditionalGeneration.from_pretrained(model_name)
+
+languages = {
+    "1": ("English", "en"),
+    "2": ("Hindi", "hi"),
+    "3": ("Marathi", "mr"),
+    "4": ("Gujarati", "gu"),
+    "5": ("French", "fr"),
+    "6": ("German", "de"),
+    "7": ("Spanish", "es"),
+    "8": ("Japanese", "ja"),
+    "9": ("Arabic", "ar")
+}
+
+print("Languages:")
+
+for number, (name, code) in languages.items():
+    print(number, name)
+
+source = input("\nSource language number: ")
+destination = input("Destination language number: ")
+text = input("Enter text: ")
+
+source_name, source_code = languages[source]
+destination_name, destination_code = languages[destination]
+
+# Set source language
+tokenizer.src_lang = source_code
+
+# Convert text into tokens
+encoded = tokenizer(text, return_tensors="pt")
+
+# Generate translation
+output = model.generate(
+    **encoded,
+    forced_bos_token_id=tokenizer.get_lang_id(destination_code)
+)
+
+# Convert tokens to text
+translation = tokenizer.decode(
+    output[0],
+    skip_special_tokens=True
+)
+
+print("\nOriginal:", text)
+print("Translation:", translation)
